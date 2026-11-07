@@ -1,0 +1,113 @@
+===============================================================================
+ TILEHUNT 
+===============================================================================
+ 
+Arborescence attendue, a cote de tilehunt.py :
+ 
+    Tiles/
+      tilehunt.py
+      commandes_bases.txt
+      Data/      les telechargements, les npz, les bases locales
+      Maps/      les html generes
+      Runs/      un sous-dossier par parcours (cree tout seul)
+ 
+Data/, Maps/ et Runs/ sont crees automatiquement. Seul tilehunt.py doit
+etre la au depart.
+ 
+ 
+===============================================================================
+ WINDOWS
+===============================================================================
+ 
+--- 1. Bibliotheques ---------------------------------------------------------
+ 
+    pip install numpy scipy shapely osmium rasterio
+ 
+  numpy et scipy : calcul et plus courts chemins
+  shapely        : les frontieres (masque France, regions, departements)
+  osmium         : lecture du .osm.pbf   (le paquet s'appelle osmium, pas
+                   pyosmium)
+  rasterio       : les altitudes Copernicus, etape 3 seulement
+ 
+ 
+--- 2. Donnees ---------------------------------------------------------------
+ 
+    curl.exe -L -o Data\france-latest.osm.pbf https://download.geofabrik.de/europe/france-latest.osm.pbf
+    curl.exe -L -o Data\countries.geojson https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson
+    curl.exe -L -o Data\regions.geojson https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/regions.geojson
+    curl.exe -L -o Data\departements.geojson https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson
+ 
+  Tailles : le pbf fait plusieurs Go, les trois geojson 3,0 / 1,4 / 3,4 Mo.
+ 
+ 
+--- 3. Base de donnees locale  (~25-30 min) ----------------------------------
+ 
+    python tilehunt.py genBDD --pbf france-latest.osm.pbf --out france.paved.npz --db Database_OSM --dem-db DEM_DB -v
+ 
+  Routes et altitudes dans la meme passe. Interrompue, relancer la meme
+  ligne : ce qui est fini est saute. Seule etape qui touche au reseau,
+  pour les altitudes (~560 Mo au final dans Data\DEM_DB).
+ 
+ 
+--- 4. Masque France ---------------------------------------------------------
+ 
+    python tilehunt.py mask --boundary countries.geojson --iso FRA --clip -5.3,41.2,9.7,51.2 --out france.mask.npz
+ 
+ 
+--- 5. Carte interactive -----------------------------------------------------
+ 
+    python tilehunt.py buildmap --tiles france.paved.npz --mask france.mask.npz --boundary countries.geojson --regions regions.geojson --departements departements.geojson --clip-to-mask --basemap esri-gray --out france.html
+ 
+ 
+--- 6. Les parcours ----------------------------------------------------------
+ 
+  Ouvrir Maps\france.html, choisir SquarePlanner ou TileSeeker, suivre les
+  etapes, copier les deux commandes donnees par le panneau.
+ 
+ 
+===============================================================================
+ LINUX / MACOS
+===============================================================================
+ 
+--- 1. Bibliotheques ---------------------------------------------------------
+ 
+  Un environnement virtuel, pour ne rien installer a l'echelle du systeme :
+ 
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install numpy scipy shapely osmium rasterio
+ 
+  A refaire a chaque nouveau terminal :  source .venv/bin/activate
+ 
+  Sans venv, les distributions recentes (Debian 12+, Ubuntu 23.04+) refusent
+  d'installer dans le python du systeme. Passer outre :
+ 
+    pip install --break-system-packages numpy scipy shapely osmium rasterio
+ 
+ 
+--- 2. Donnees ---------------------------------------------------------------
+ 
+    mkdir -p Data Maps
+    curl -L -o Data/france-latest.osm.pbf https://download.geofabrik.de/europe/france-latest.osm.pbf
+    curl -L -o Data/countries.geojson https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson
+    curl -L -o Data/regions.geojson https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/regions.geojson
+    curl -L -o Data/departements.geojson https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements.geojson
+ 
+ 
+--- 3. Base de donnees locale  (~25-30 min) ----------------------------------
+ 
+    python3 tilehunt.py genBDD --pbf france-latest.osm.pbf --out france.paved.npz --db Database_OSM --dem-db DEM_DB -v
+ 
+ 
+--- 4. Masque France ---------------------------------------------------------
+ 
+    python3 tilehunt.py mask --boundary countries.geojson --iso FRA --clip=-5.3,41.2,9.7,51.2 --out france.mask.npz
+ 
+  Noter le  --clip=  avec un signe egal. Les deux formes marchent, mais
+  certains shells coupent une valeur commencant par un tiret.
+ 
+ 
+--- 5. Carte interactive -----------------------------------------------------
+ 
+    python3 tilehunt.py buildmap --tiles france.paved.npz --mask france.mask.npz --boundary countries.geojson --regions regions.geojson --departements departements.geojson --clip-to-mask --basemap esri-gray --out france.html
+ 

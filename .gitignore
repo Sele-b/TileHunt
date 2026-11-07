@@ -1,0 +1,22 @@
+# --------------------------------------------------------------------------- #
+# Ignore everything, then name the few files that belong in the repository.
+#
+# A whitelist rather than a blacklist, because the repository holds only what
+# cannot be regenerated. Everything else -- the pbf, the road and elevation
+# databases, the coverage grids, the maps, the rides -- comes back from the
+# commands in commandes_bases.txt, so Git has no business carrying it.
+#
+# Git does not look inside an ignored folder, so Data/, Maps/ and Runs/ are
+# skipped whole: nothing from them can slip in by accident.
+# --------------------------------------------------------------------------- #
+
+*
+
+!.gitignore
+!tilehunt.py
+!COMMANDES_BASE.txt
+
+# The tests cannot be regenerated either. Uncomment these two lines to keep
+# them, which is worth doing the day you change the tile maths or the solver.
+# !test_*.py
+# !*.mjs
