@@ -3406,26 +3406,41 @@ def cmd_route(a: argparse.Namespace) -> None:
         span = rect | {start_tile, end_tile}
         x0 = min(t[0] for t in span); x1 = max(t[0] for t in span)
         y0 = min(t[1] for t in span); y1 = max(t[1] for t in span)
-    # A point may legitimately sit outside the rectangle, but not on another
+    # A point may legitimately sit outside the area, but not on another
     # continent. The usual cause is LAT,LON given the other way round, and
     # both halves of a swapped pair can be valid on their own, so range checks
     # cannot catch it -- distance can.
-    _, cs, _, cn = tile_bounds((x0 + x1) // 2, (y0 + y1) // 2)
-    cw, _, ce, _ = tile_bounds((x0 + x1) // 2, (y0 + y1) // 2)
-    c_lat, c_lon = (cs + cn) / 2, (cw + ce) / 2
+    #
+    # The distance measured is how far the point lies OUTSIDE the area, not
+    # how far it is from the middle of it. Measuring from the centre made the
+    # check scale with the length of the ride: a legitimate Lille-to-Paris
+    # seeker run put both ends 110 km from the midpoint and was refused. A
+    # point inside the area is at zero distance however large the area is,
+    # while a swapped LAT,LON still lands thousands of kilometres out.
+    box_w, _, _, box_n = tile_bounds(x0, y0)
+    _, box_s, box_e, _ = tile_bounds(x1, y1)
+
+    def outside_km(lat: float, lon: float) -> float:
+        near_lon = min(max(lon, box_w), box_e)
+        near_lat = min(max(lat, box_s), box_n)
+        return haversine_m(lon, lat, near_lon, near_lat) / 1000.0
+
     checks = [(a.start_at, "--start-at"), (a.end_at, "--end-at")]
     checks += [(v, "--via") for v in (a.via or [])]
     for pt, lab in checks:
         if pt is None:
             continue
-        far = haversine_m(c_lon, c_lat, pt[1], pt[0]) / 1000.0
+        far = outside_km(pt[0], pt[1])
         if far > a.away_max:
-            swap = haversine_m(c_lon, c_lat, pt[0], pt[1]) / 1000.0
-            hint = (f"  Did you mean {pt[1]},{pt[0]}? That is {swap:.0f} km "
-                    f"away." if swap < far / 10 else "")
+            swap = outside_km(pt[1], pt[0])
+            hint = (f"  Did you mean {pt[1]},{pt[0]}? That one is inside."
+                    if swap == 0 else
+                    (f"  Did you mean {pt[1]},{pt[0]}? That is only "
+                     f"{swap:.0f} km out." if swap < far / 10 else ""))
             raise SystemExit(
-                f"{lab} {pt[0]},{pt[1]} is {far:,.0f} km from the rectangle. "
-                f"The order is LAT,LON.{hint}  Raise --away-max to allow it.")
+                f"{lab} {pt[0]},{pt[1]} lies {far:,.0f} km outside the area "
+                f"this ride covers. The order is LAT,LON.{hint}  "
+                f"Raise --away-max to allow it.")
 
     w, _, _, n = tile_bounds(x0 - a.margin, y0 - a.margin)
     _, s, e, _ = tile_bounds(x1 + a.margin, y1 + a.margin)
@@ -6468,12 +6483,11 @@ def main(argv: Sequence[str] | None = None) -> None:
                    help="elevation folder named in the commands the plan "
                         "panel hands you (default DEM_DB, the block "
                         "database)")
-    g.add_argument("--route-args",
-                   default="--cands 6 --seconds 120 --reopt-seconds 60",
-                   metavar="FLAGS",
+    g.add_argument("--route-args", default="", metavar="FLAGS",
                    help="extra flags written into the command the plan panel "
-                        "hands you (default: --cands 6 --seconds 120 "
-                        "--reopt-seconds 60)")
+                        "hands you. Empty by default, since --cands 6, "
+                        "--seconds 80 and --reopt-seconds 30 are now what the "
+                        "solver does anyway.")
     g.add_argument("--python-cmd", default="python", metavar="NAME",
                    help="how the commands in the plan panel should invoke "
                         "Python (python)")
@@ -6540,10 +6554,12 @@ def main(argv: Sequence[str] | None = None) -> None:
                         "rectangle. Overrides --start.")
     route_opts.add_argument("--end-at", type=parse_latlon, metavar="LAT,LON",
                    help="exact point to finish at. Overrides --end.")
-    route_opts.add_argument("--away-max", type=float, default=100.0, metavar="KM",
-                   help="refuse an exact endpoint further than this from the "
-                        "rectangle (100 km); the usual cause is LAT,LON given "
-                        "the wrong way round")
+    route_opts.add_argument("--away-max", type=float, default=100.0,
+                   metavar="KM",
+                   help="refuse an exact endpoint lying more than this far "
+                        "OUTSIDE the area covered (100 km). A point inside is "
+                        "never refused, however long the ride; the usual "
+                        "cause is LAT,LON given the wrong way round")
     route_opts.add_argument("--via", action="append", type=parse_latlon,
                    metavar="LAT,LON",
                    help="a point the ride must go through, pinned like the "
@@ -6561,18 +6577,18 @@ def main(argv: Sequence[str] | None = None) -> None:
     route_opts.add_argument("--margin", type=int, default=2,
                    help="tiles of road to load around the rectangle, so the "
                         "ride may leave it when that is shorter (2)")
-    route_opts.add_argument("--cands", type=int, default=4,
-                   help="candidate junctions per tile (4). More is slower but "
+    route_opts.add_argument("--cands", type=int, default=6,
+                   help="candidate junctions per tile (6). More is slower but "
                         "lets the route enter a tile at a better point.")
-    route_opts.add_argument("--seconds", type=float, default=30.0,
-                   help="time budget for improving the visit order (30)")
+    route_opts.add_argument("--seconds", type=float, default=80.0,
+                   help="time budget for improving the visit order (80)")
     route_opts.add_argument("--prune-seconds", type=float, default=60.0,
                    help="extra budget for dropping redundant visits (60)")
     route_opts.add_argument("--seed", type=int, default=12345,
                    help="random seed for the restarts, so a run is repeatable")
-    route_opts.add_argument("--reopt-seconds", type=float, default=20.0,
+    route_opts.add_argument("--reopt-seconds", type=float, default=30.0,
                    help="budget for re-optimising the visit order once the "
-                        "redundant visits have been dropped (20)")
+                        "redundant visits have been dropped (30)")
     route_opts.add_argument("--no-progress", action="store_true",
                    help="do not print the running best distance")
     route_opts.add_argument("--no-prune", action="store_true",

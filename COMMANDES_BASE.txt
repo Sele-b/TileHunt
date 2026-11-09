@@ -11,8 +11,10 @@ Arborescence attendue, a cote de tilehunt.py :
       Maps/      les html generes
       Runs/      un sous-dossier par parcours (cree tout seul)
 
-Data/, Maps/ et Runs/ sont crees automatiquement. Seul tilehunt.py doit
-etre la au depart.
+tilehunt cree Data/, Maps/ et Runs/ tout seul au premier lancement. Mais
+l'etape 2 telecharge DANS Data/ avec curl, avant qu'aucune commande tilehunt
+n'ait tourne, et curl ne cree pas de dossier : il faut donc creer Data/ et
+Maps/ a la main au depart.
 
 
 ===============================================================================
@@ -31,6 +33,13 @@ etre la au depart.
 
 
 --- 2. Donnees ---------------------------------------------------------------
+
+  Creer les dossiers d'abord, curl ne le fera pas :
+
+    mkdir Data
+    mkdir Maps
+
+  Puis telecharger :
 
     curl.exe -L -o Data\france-latest.osm.pbf https://download.geofabrik.de/europe/france-latest.osm.pbf
     curl.exe -L -o Data\countries.geojson https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson
@@ -90,6 +99,12 @@ etre la au depart.
 
   Ouvrir Maps\france.html, choisir SquarePlanner ou TileSeeker, suivre les
   etapes, copier les deux commandes donnees par le panneau.
+
+  Reglages par defaut du solveur, inutile de les ecrire :
+    --cands 6            jonctions candidates par tuile
+    --seconds 80         budget pour ameliorer l'ordre de visite
+    --reopt-seconds 30   budget apres l'elagage des visites redondantes
+    --prune-seconds 60   budget de l'elagage lui-meme
 
   Dans Layers :
     visited        les tuiles que tu as, en bleu, par-dessus tout le reste
