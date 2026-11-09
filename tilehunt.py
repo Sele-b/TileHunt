@@ -83,6 +83,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import itertools
 import json
 import math
 import os
@@ -237,7 +238,8 @@ def apply_layout(a: argparse.Namespace) -> None:
         v = getattr(a, field, None)
         if v:
             setattr(a, field, [find_input(x) for x in v])
-    for field in ("boundary", "regions", "departments", "tiles", "mask"):
+    for field in ("boundary", "regions", "departments", "tiles", "mask",
+                  "visited"):
         v = getattr(a, field, None)
         if v:
             setattr(a, field, find_input(v))
@@ -1592,6 +1594,30 @@ def cmd_map(a: argparse.Namespace) -> None:
                  "wanted": rj.get("wanted")}
 
     green = roads.count
+    # the tiles already ridden, reframed onto the same window as the roads so
+    # the page can index all three grids with one set of coordinates
+    visited = None
+    vis_stats = None
+    if getattr(a, "visited", None):
+        v = TileGrid.load(a.visited)
+        visited = v.reframe(roads.x0, roads.y0, roads.w, roads.h)
+        have = int(visited.bits.sum())
+        need = int((roads.bits & ~visited.bits).sum())
+        if mask is not None:
+            need = int((roads.bits & mask.bits & ~visited.bits).sum())
+        if v.meta.get("max_square"):
+            side, sqx, sqy = v.meta["max_square"][:3]
+        else:
+            side, bx_, by_ = largest_square(v.bits)
+            sqx, sqy = v.x0 + bx_, v.y0 + by_
+        vis_stats = {"have": have, "need": need,
+                     "square": [int(side), int(sqx), int(sqy)],
+                     "total": int(v.bits.sum()),
+                     "meta": v.meta}
+        print(f"visited     : {int(v.bits.sum()):,} tile(s) ridden, "
+              f"{have:,} of them in this window, {need:,} still to get")
+        print(f"max square  : {side} x {side} at {sqx},{sqy}")
+
     inscope = mask.count if mask is not None else green
     red = int((mask.bits & ~roads.bits).sum()) if mask is not None else 0
 
@@ -1602,6 +1628,8 @@ def cmd_map(a: argparse.Namespace) -> None:
         "kmScale": 0.01,          # stored unit: hundredths of a km (10 m)
         "kmStats": km_stats,
         "land": mask.b64() if mask is not None else None,
+        "visited": visited.b64() if visited is not None else None,
+        "visitedStats": vis_stats,
         "cities": [[n, lo, la, t] for n, lo, la, t in FRENCH_CITIES],
         "base": base,
         "admin": admin,
@@ -4277,6 +4305,208 @@ def cmd_snap(a: argparse.Namespace) -> None:
     print(f"use it with : --start-at {lat},{lon}   (or --end-at)")
 
 
+# --------------------------------------------------------------------------- #
+# Statshunters: the tiles you have already ridden
+#
+# There is no OAuth for third parties, so there is no "sign in with
+# Statshunters" to build. What Statshunters offers instead is a share link the
+# user creates themselves, which exposes their activities as JSON. Every tool
+# in this ecosystem works that way. The link is a secret -- whoever holds it
+# can read the whole history -- so it is kept in a file of its own rather than
+# typed into a command line that lands in a shell history.
+# --------------------------------------------------------------------------- #
+
+SHARE_RE = re.compile(r"^https?://(?:www\.)?statshunters\.com/share/(\w+)/?$")
+SHARE_FILE = "statshunters.txt"
+
+
+def share_url(value: str, base: str | None = None) -> str:
+    """
+    Accept a full share link or just its code, and return the link.
+
+    `base` exists so the client can be pointed at a local stand-in in the
+    tests; in normal use it is Statshunters itself. Refusing anything else by
+    default is deliberate: a share link is a secret, and a typo that sent it
+    to the wrong host would hand over the whole history.
+    """
+    v = str(value).strip().strip('"').strip("'")
+    host = (base or "https://www.statshunters.com").rstrip("/")
+    if base:
+        m = re.match(r"^https?://[^/]+/share/(\w+)/?$", v)
+        if m:
+            return f"{host}/share/{m.group(1)}"
+    m = SHARE_RE.match(v)
+    if m:
+        return f"{host}/share/{m.group(1)}"
+    if re.fullmatch(r"\w{6,}", v):
+        return f"{host}/share/{v}"
+    raise SystemExit(
+        f"{value!r} is not a Statshunters share link. Create one at "
+        f"https://www.statshunters.com/share -- it looks like "
+        f"https://www.statshunters.com/share/abcdef123456")
+
+
+def remembered_share() -> str | None:
+    path = DATA_DIR / SHARE_FILE
+    if not path.exists():
+        return None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            return line
+    return None
+
+
+def remember_share(link: str) -> None:
+    path = DATA_DIR / SHARE_FILE
+    path.write_text(
+        "# Your Statshunters share link. Anyone holding it can read your\n"
+        "# whole activity history, so keep this file out of git. Revoke or\n"
+        "# replace it at https://www.statshunters.com/share\n"
+        f"{link}\n", encoding="utf-8")
+    print(f"remembered  : {path}  (keep it out of git)")
+
+
+def fetch_activities(link: str, timeout: float = 60.0,
+                     verbose: bool = False):
+    """
+    Every activity behind a share link, page by page.
+
+    The endpoint is the share link with /api/activities appended and a page
+    number; it answers with {"activities": [...]} and an empty list once there
+    is nothing left. Pages hold 500 activities.
+    """
+    import urllib.error
+    import urllib.request
+
+    base = link.rstrip("/") + "/api/activities"
+    seen = 0
+    for page in itertools.count(1):
+        url = f"{base}?page={page}"
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "tilehunt/1.0 (explorer tile routing)",
+                          "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                payload = json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                raise SystemExit(
+                    f"Statshunters answered 404 for {url}\n"
+                    f"The share link is wrong, or it has been revoked. "
+                    f"Create a new one at https://www.statshunters.com/share")
+            raise SystemExit(f"Statshunters answered {exc.code} for {url}")
+        except urllib.error.URLError as exc:
+            raise SystemExit(f"could not reach Statshunters: {exc.reason}")
+        except json.JSONDecodeError:
+            raise SystemExit(
+                f"{url} did not answer with JSON. If you pasted the link in a "
+                f"browser and saw your page, the link is fine and the API "
+                f"path may have changed.")
+
+        acts = payload.get("activities")
+        if acts is None:
+            raise SystemExit(f"unexpected answer from {url}: no 'activities'")
+        if not acts:
+            return
+        seen += len(acts)
+        if verbose:
+            print(f"   page {page}: {len(acts)} activities "
+                  f"({seen:,} so far)", flush=True)
+        yield from acts
+
+
+def largest_square(bits: np.ndarray) -> tuple[int, int, int]:
+    """
+    The biggest solid square of set tiles: side, and its top-left corner.
+
+    The classic dynamic program: a cell's score is how big a square can end
+    there, which is one more than the smallest of its three neighbours. This
+    is the number the whole explorer-tile game is played for.
+    """
+    h, w = bits.shape
+    dp = np.zeros((h + 1, w + 1), dtype=np.int32)
+    best, by, bx = 0, 0, 0
+    for y in range(h):
+        row = bits[y]
+        for x in range(w):
+            if not row[x]:
+                continue
+            v = 1 + int(min(dp[y, x], dp[y, x + 1], dp[y + 1, x]))
+            dp[y + 1, x + 1] = v
+            if v > best:
+                best, by, bx = v, y - v + 1, x - v + 1
+    return int(best), int(bx), int(by)
+
+
+def cmd_visited(a: argparse.Namespace) -> None:
+    """Pull the tiles you have already ridden out of Statshunters."""
+    link = (share_url(a.share, a.share_base) if a.share
+            else remembered_share())
+    if not link:
+        raise SystemExit(
+            "no share link given and none remembered.\n"
+            "Create one at https://www.statshunters.com/share, then:\n"
+            "  python tilehunt.py genVisited --share "
+            "https://www.statshunters.com/share/YOURCODE")
+    print(f"share link  : {link[:38]}...  (kept out of this output)")
+
+    want_types = {t.strip().lower() for t in a.type.split(",")} if a.type else None
+    tiles: set[tuple[int, int]] = set()
+    kept = skipped = 0
+    oldest = newest = None
+    for act in fetch_activities(link, a.timeout, a.verbose):
+        when = str(act.get("date") or act.get("start_date") or "")[:10]
+        if a.since and when and when < a.since:
+            skipped += 1
+            continue
+        if a.until and when and when > a.until:
+            skipped += 1
+            continue
+        if want_types and str(act.get("type", "")).lower() not in want_types:
+            skipped += 1
+            continue
+        kept += 1
+        if when:
+            oldest = when if oldest is None else min(oldest, when)
+            newest = when if newest is None else max(newest, when)
+        for t in act.get("tiles") or ():
+            try:
+                tiles.add((int(t["x"]), int(t["y"])))
+            except (KeyError, TypeError, ValueError):
+                continue
+
+    if not tiles:
+        raise SystemExit(
+            "no tiles came back. If you filtered by --type or by date, try "
+            "without; otherwise the account may have no processed activities "
+            "yet (Statshunters imports in the background).")
+
+    print(f"activities  : {kept:,} kept"
+          + (f", {skipped:,} filtered out" if skipped else ""))
+    if oldest:
+        print(f"period      : {oldest} to {newest}")
+    grid = TileGrid.from_tiles(sorted(tiles), meta={
+        "source": "statshunters", "activities": kept,
+        "from": oldest, "to": newest,
+        "type": a.type or "all",
+        "built": time.strftime("%Y-%m-%dT%H:%M:%S")})
+    side, sx_, sy_ = largest_square(grid.bits)
+    print(f"tiles       : {len(tiles):,} visited, "
+          f"spanning x {grid.x0}..{grid.x0+grid.w-1}  "
+          f"y {grid.y0}..{grid.y0+grid.h-1}")
+    print(f"max square  : {side} x {side}  at "
+          f"{grid.x0+sx_},{grid.y0+sy_} .. "
+          f"{grid.x0+sx_+side-1},{grid.y0+sy_+side-1}")
+    grid.meta["max_square"] = [int(side), int(grid.x0 + sx_),
+                               int(grid.y0 + sy_)]
+    grid.save(a.out)
+    print(f"written     : {a.out}")
+    if a.share and a.remember:
+        remember_share(link)
+    print(f"use it with : --visited {os.path.basename(a.out)}")
+
+
 def cmd_dbinfo(a: argparse.Namespace) -> None:
     """Say exactly what the database holds for a tile, and what it does not."""
     root = a.db
@@ -4532,6 +4762,11 @@ VIEWER_HTML = r"""<!DOCTYPE html>
     <b><span class="sw" style="background:#39404d"></span><span id="lab-out">out</span></b><span id="s-out"></span>
     <b><span id="lab-pct">covered</span></b><span id="s-pct"></span>
   </div>
+  <div class="kv" id="vis-kv" style="display:none">
+    <b><span class="sw" style="background:#4aa3ff"></span>ridden</b><span id="s-have"></span>
+    <b><span class="sw" style="background:var(--green)"></span>to get</b><span id="s-need"></span>
+    <b>max square</b><span id="s-sq"></span>
+  </div>
   <div id="note"></div>
 </div>
 
@@ -4621,10 +4856,12 @@ VIEWER_HTML = r"""<!DOCTYPE html>
   <h2>Layers</h2>
   <div class="btns">
     <button id="b-tiles" class="on">tiles</button>
+    <button id="b-visited" class="on">visited</button>
+    <button id="b-green" class="on">remove green</button>
     <button id="b-red" class="on">remove red</button>
-    <button id="b-grid" class="on">grid</button>
     <button id="b-base" class="on">basemap</button>
     <button id="b-cities" class="on">cities</button>
+    <button id="b-grid" class="on">grid</button>
     <button id="b-route" class="on">route</button>
     <button id="b-reg" class="on">regions</button>
     <button id="b-dep" class="on">departments</button>
@@ -4660,6 +4897,8 @@ function unpack(b64, n){
 const W = D.w, H = D.h, NT = W*H;
 const ROAD = unpack(D.road, NT);
 const LAND = unpack(D.land, NT);
+const VISITED = unpack(D.visited, NT);
+let showVisited = true;
 const Z = D.z, NZ = Math.pow(2, Z);
 
 /* road length per tile, in hundredths of a km, little-endian uint16 */
@@ -4678,6 +4917,9 @@ const kmOf = i => KMQ ? KMQ[i] * KM_SCALE : 0;
    darkest step that recedes into the background. */
 const BLUE = ["#cde2fb","#9ec5f4","#6da7ec","#3987e5","#256abf","#184f95","#0d366b"];
 const ZERO_COLOUR = "#d03b3b";          /* a state, not a magnitude */
+/* the tiles you hold: a hue of its own, away from the green of the roads, the
+   red of the gaps and the muted blues of the density ramp */
+const HELD = [74,163,255];              /* #4aa3ff */
 
 const inWin = (x,y)=> x>=D.x0 && y>=D.y0 && x<D.x0+W && y<D.y0+H;
 const idx   = (x,y)=> (y-D.y0)*W + (x-D.x0);
@@ -4707,6 +4949,7 @@ const grid = document.createElement("canvas");
 grid.width = W; grid.height = H;
 const gctx = grid.getContext("2d");
 let showRed = true;
+let showGreen = true;
 let mode = "coverage";
 let BINS = null;            /* six thresholds, in km */
 function computeBins(){
@@ -4739,6 +4982,10 @@ const INK2 = LIGHTBG ? "#0b1018" : "#e6edf3";
 const HALO = LIGHTBG ? "rgba(255,255,255,0.9)" : "rgba(10,14,20,0.85)";
 function paintGrid(){
   const img = gctx.createImageData(W,H), p = img.data;
+  // A tile you already hold wins over everything else, in both views: that is
+  // what makes "show me only my tiles" a matter of switching the other two
+  // layers off, and what makes a red tile you have ridden read as held.
+  const vis = showVisited && VISITED;
   if(mode === "density" && KMQ){
     if(!BINS) computeBins();
     const ramp = LIGHTBG ? BLUE : BLUE.slice().reverse();
@@ -4746,7 +4993,10 @@ function paintGrid(){
     const zero = hex2rgb(ZERO_COLOUR);
     for(let i=0;i<NT;i++){
       const o = i<<2;
-      if(ROAD[i] && KMQ[i] > 0){
+      if(vis && VISITED[i]){
+        p[o]=HELD[0]; p[o+1]=HELD[1]; p[o+2]=HELD[2]; p[o+3]=TA;
+      } else if(ROAD[i] && KMQ[i] > 0){
+        if(!showGreen) continue;
         const c = rgb[binOf(KMQ[i] * KM_SCALE)];
         p[o]=c[0]; p[o+1]=c[1]; p[o+2]=c[2]; p[o+3]=TA;
       } else if(LAND && LAND[i]){
@@ -4757,7 +5007,13 @@ function paintGrid(){
   } else {
     for(let i=0;i<NT;i++){
       const o = i<<2;
-      if(ROAD[i]){ p[o]=46; p[o+1]=160; p[o+2]=67; p[o+3]=TA; }
+      if(vis && VISITED[i]){
+        p[o]=HELD[0]; p[o+1]=HELD[1]; p[o+2]=HELD[2]; p[o+3]=TA;
+      }
+      else if(ROAD[i]){
+        if(!showGreen) continue;
+        p[o]=46; p[o+1]=160; p[o+2]=67; p[o+3]=TA;
+      }
       else if(showRed && LAND && LAND[i]){ p[o]=218; p[o+1]=54; p[o+2]=51; p[o+3]=TA_RED; }
     }
   }
@@ -5746,6 +6002,7 @@ tog("b-base",  ()=>showBase,  v=>showBase=v);
   for(const ev of ["keydown","keyup","keypress"])
     f.addEventListener(ev, e=>e.stopPropagation());
 })();
+tog("b-visited",()=>showVisited,v=>{showVisited=v; paintGrid();});
 tog("b-cities",()=>showCities,v=>showCities=v);
 tog("b-route", ()=>showRoute, v=>showRoute=v);
 tog("b-reg",  ()=>showReg, v=>showReg=v);
@@ -5758,6 +6015,10 @@ document.getElementById("b-mode").onclick = function(){
 };
 document.getElementById("b-red").onclick = function(){
   showRed = !showRed; this.classList.toggle("on", showRed); paintGrid(); requestDraw();
+};
+document.getElementById("b-green").onclick = function(){
+  showGreen = !showGreen; this.classList.toggle("on", showGreen);
+  paintGrid(); requestDraw();
 };
 function clearPlan(){
   planRect = planStart = planEnd = null;
@@ -5909,6 +6170,24 @@ function updateStats(){
     const cell = document.getElementById("s-out");
     cell.style.cursor = ""; cell.style.textDecoration = ""; cell.onclick = null;
     cell.title = "";
+    if(D.visitedStats){
+      const v = D.visitedStats;
+      document.getElementById("vis-kv").style.display = "grid";
+      document.getElementById("s-have").textContent = v.have.toLocaleString();
+      document.getElementById("s-need").textContent = v.need.toLocaleString();
+      const sq = v.square;
+      const cell = document.getElementById("s-sq");
+      cell.textContent = sq[0] + " \u00d7 " + sq[0];
+      if(sq[0]){
+        cell.style.cursor = "pointer";
+        cell.style.textDecoration = "underline dotted";
+        cell.title = "go to " + sq[1] + "," + sq[2];
+        cell.onclick = () => gotoTile(sq[1] + (sq[0]>>1), sq[2] + (sq[0]>>1),
+                                      Math.max(6, 420 / sq[0]));
+      }
+    } else {
+      document.getElementById("vis-kv").style.display = "none";
+    }
     setStat("green", "green",   D.stats.green.toLocaleString());
     setStat("red",   "red",     D.stats.red.toLocaleString());
     setStat("pct",   "covered", D.stats.pct + "%");
@@ -6128,6 +6407,10 @@ def main(argv: Sequence[str] | None = None) -> None:
                        help="build the self-contained interactive HTML")
     g.add_argument("--tiles", required=True)
     g.add_argument("--mask")
+    g.add_argument("--visited", metavar="NPZ",
+                   help="the tiles you have already ridden, from genVisited: "
+                        "adds a layer, the count still to get, and your max "
+                        "square")
     g.add_argument("--out")
     g.add_argument("--boundary", help="polygon GeoJSON for the vector basemap")
     g.add_argument("--iso", default="FRA", help="ISO_A3 to highlight in the basemap")
@@ -6453,6 +6736,30 @@ def main(argv: Sequence[str] | None = None) -> None:
     sn.add_argument("--idx")
     sn.add_argument("-v", "--verbose", action="store_true")
     sn.set_defaults(func=cmd_snap)
+
+    vi = sub.add_parser("genVisited", parents=[common], aliases=["visited"],
+                        help="the tiles you have already ridden, from your "
+                             "Statshunters share link")
+    vi.add_argument("--share", metavar="LINK",
+                    help="your share link from https://www.statshunters.com/"
+                         "share (or just its code). Remembered afterwards, so "
+                         "you only pass it once.")
+    vi.add_argument("--out", default="visited.npz",
+                    help="where to write the grid (visited.npz)")
+    vi.add_argument("--type", metavar="LIST",
+                    help="keep only these activity types, comma separated, "
+                         "e.g. Ride or Ride,VirtualRide. Default: all.")
+    vi.add_argument("--since", metavar="YYYY-MM-DD",
+                    help="ignore activities before this date")
+    vi.add_argument("--until", metavar="YYYY-MM-DD",
+                    help="ignore activities after this date")
+    vi.add_argument("--timeout", type=float, default=60.0)
+    vi.add_argument("--no-remember", dest="remember", action="store_false",
+                    help="do not write the share link to Data/"
+                         + SHARE_FILE)
+    vi.add_argument("--share-base", help=argparse.SUPPRESS)
+    vi.add_argument("-v", "--verbose", action="store_true")
+    vi.set_defaults(func=cmd_visited)
 
     d = sub.add_parser("dbinfo", parents=[common],
                        help="what the road database holds for given tiles")
