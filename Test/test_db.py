@@ -29,7 +29,7 @@ import sys
 import numpy as np
 
 import osmium
-from tilehunt import (BLOCK_ZOOM, SHARD_ZOOM, ZOOM, tilef_to_lonlat,
+from Tilehunt import (BLOCK_ZOOM, SHARD_ZOOM, ZOOM, tilef_to_lonlat,
                       load_db_graph, tile_bounds)
 
 OUT = os.path.join(tempfile.gettempdir(), "tilehunt-dbtest2")

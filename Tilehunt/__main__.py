@@ -1,4 +1,4 @@
-"""python -m tilehunt <command> ..."""
+"""python -m Tilehunt <command> ..."""
 import sys
 
 from .cli import main

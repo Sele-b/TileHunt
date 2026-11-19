@@ -13,7 +13,7 @@ import math
 import random
 import sys
 
-from tilehunt import (ZOOM, NTILES, lonlat_to_tilef, tilef_to_lonlat, tile_bounds,
+from Tilehunt import (ZOOM, NTILES, lonlat_to_tilef, tilef_to_lonlat, tile_bounds,
                       tile_size_m, walk_segment, walk_polyline, classify_way)
 
 fails = []
@@ -147,7 +147,7 @@ check("5 m stub across a boundary hits both tiles",
 check("5 m stub hits nothing else", len(s) == 2, f"got {sorted(s)}")
 
 print("\n== segment length split ==")
-from tilehunt import walk_segment_frac, walk_segment, walk_polyline, EARTH_CIRCUMFERENCE_M, NTILES
+from Tilehunt import walk_segment_frac, walk_segment, walk_polyline, EARTH_CIRCUMFERENCE_M, NTILES
 
 bad_sum = bad_cells = 0
 for _ in range(4000):
@@ -248,7 +248,7 @@ for tags, want in cases:
     check(f"{tags} -> {want}", got == want, f"got {got} ({reason})")
 
 print("\n== all-roads preset ==")
-from tilehunt import classify_all_roads as car
+from Tilehunt import classify_all_roads as car
 for tags, want in [({"highway": "motorway"}, False),
                    ({"highway": "trunk"}, True),
                    ({"highway": "trunk", "motorroad": "yes"}, False),
@@ -257,7 +257,7 @@ for tags, want in [({"highway": "motorway"}, False),
     check(f"all-roads {tags} -> {want}", got == want, f"got {got} ({reason})")
 
 print("\n== switches ==")
-from tilehunt import classify_way as cw
+from Tilehunt import classify_way as cw
 check("cobbles on  -> sett accepted",
       cw({"highway": "residential", "surface": "sett"})[0] is True)
 check("cobbles off -> sett rejected",

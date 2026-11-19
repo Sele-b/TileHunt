@@ -270,7 +270,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     g.add_argument("--route-args", default="", metavar="FLAGS",
                    help="extra flags written into the command the plan panel "
                         "hands you. Empty by default, since --cands 6, "
-                        "--seconds 80 and --reopt-seconds 30 are now what the "
+                        "--seconds 60 and --reopt-seconds 30 are now what the "
                         "solver does anyway.")
     g.add_argument("--python-cmd", default="python", metavar="NAME",
                    help="how the commands in the plan panel should invoke "
@@ -364,8 +364,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     route_opts.add_argument("--cands", type=int, default=6,
                    help="candidate junctions per tile (6). More is slower but "
                         "lets the route enter a tile at a better point.")
-    route_opts.add_argument("--seconds", type=float, default=80.0,
-                   help="time budget for improving the visit order (80)")
+    route_opts.add_argument("--seconds", type=float, default=60.0,
+                   help="time budget for improving the visit order (60)")
     route_opts.add_argument("--prune-seconds", type=float, default=60.0,
                    help="extra budget for dropping redundant visits (60)")
     route_opts.add_argument("--seed", type=int, default=12345,

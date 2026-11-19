@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 import osmium
-from tilehunt import TileGrid, lonlat_to_tilef, tilef_to_lonlat
+from Tilehunt import TileGrid, lonlat_to_tilef, tilef_to_lonlat
 
 OUT = os.path.join(tempfile.gettempdir(), "tilehunt-pbftest")
 shutil.rmtree(OUT, ignore_errors=True)
@@ -147,7 +147,7 @@ from rasterio.transform import from_origin as _fo
 SRC = os.path.join(OUT, "SRC"); os.makedirs(SRC, exist_ok=True)
 DBR = os.path.join(OUT, "Database_OSM")
 DEMB = os.path.join(OUT, "DEM_DB")
-import tilehunt as _t
+import Tilehunt as _t
 
 # a source tile covering wherever the synthetic ways landed
 with _np.load(os.path.join(OUT, "t.npz")) as _f:

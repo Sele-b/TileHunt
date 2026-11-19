@@ -2,13 +2,13 @@
 tilehunt -- explorer-tile routing for the VeloViewer / Statshunters
 square challenge.
 
-The usage guide, with every command, is the docstring of tilehunt.cli
-(and what `python -m tilehunt --help` prints).
+The usage guide, with every command, is the docstring of Tilehunt.cli
+(and what `python -m Tilehunt --help` prints).
 """
 from __future__ import annotations
 
 # Everything the single-file tilehunt.py exposed is still reachable as
-# tilehunt.<name>, so `import tilehunt as t` keeps working unchanged.
+# Tilehunt.<name>, so `import Tilehunt as t` keeps working unchanged.
 from .layout import (  # noqa: F401
     ROOT,
     SAFE_NAME,
@@ -192,4 +192,4 @@ def __getattr__(name):
     if name in ("DATA_DIR", "MAPS_DIR", "RUNS_DIR"):
         from . import layout
         return getattr(layout, name)
-    raise AttributeError(f"module 'tilehunt' has no attribute {name!r}")
+    raise AttributeError(f"module 'Tilehunt' has no attribute {name!r}")

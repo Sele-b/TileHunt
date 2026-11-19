@@ -2,8 +2,8 @@
 """
 Kept so that `python tilehunt.py <command> ...` works exactly as before.
 
-The code itself now lives in the tilehunt/ package beside this file; this is
-the same as running `python -m tilehunt <command> ...`.
+The code itself now lives in the Tilehunt/ package beside this file; this is
+the same as running `python -m Tilehunt <command> ...`.
 """
 import os
 import sys
@@ -12,7 +12,7 @@ import sys
 # path; the single-file version did not care, so the shim must not either.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from tilehunt.cli import main  # noqa: E402
+from Tilehunt.cli import main  # noqa: E402
 
 if __name__ == "__main__":
     sys.exit(main())

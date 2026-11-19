@@ -12,8 +12,8 @@ sys.path.insert(0, REPO)
 import tempfile
 import math, os, shutil, sys, tempfile
 import numpy as np
-import tilehunt
-from tilehunt import (DEM, hgt_name, hgt_url, resample_track, smooth,
+import Tilehunt
+from Tilehunt import (DEM, hgt_name, hgt_url, resample_track, smooth,
                       ascent_descent, build_profile, haversine_m)
 
 OUT = os.path.join(tempfile.gettempdir(), "tilehunt-demtest")
@@ -138,7 +138,7 @@ def test_geotiff():
         ds.write(z2, 1)
         ds.update_tags(AREA_OR_POINT="Area")
 
-    dem = tilehunt.DEM(root)
+    dem = Tilehunt.DEM(root)
 
     rng = np.random.default_rng(7)
     qlon = 2.02 + rng.random(4000) * 0.96
@@ -174,7 +174,7 @@ def test_geotiff():
     ha = 51.0 - np.arange(m) / (m - 1)
     hz = np.round(surface(hl[None, :], ha[:, None])).astype(">i2")
     open(os.path.join(root, hgt_name(50, 5)), "wb").write(hz.tobytes())
-    dem2 = tilehunt.DEM(root)
+    dem2 = Tilehunt.DEM(root)
     a = dem2.sample(np.array([5.5]), np.array([50.5]))[0]
     b = dem2.sample(np.array([2.5]), np.array([47.5]))[0]
     assert abs(a - surface(5.5, 50.5)) < 2.0
@@ -182,7 +182,7 @@ def test_geotiff():
     assert dem2.sources == {"SRTM .hgt", "GeoTIFF"}
     print("mixed folder: .hgt and GeoTIFF read side by side")
 
-    print(f"copernicus url: {tilehunt.copernicus_url(48, -2)}")
+    print(f"copernicus url: {Tilehunt.copernicus_url(48, -2)}")
 
 
 test_geotiff()

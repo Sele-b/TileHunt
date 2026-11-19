@@ -1068,8 +1068,7 @@ function renderPlan(){
       " --start-at " + planStart.lat.toFixed(6) + "," + planStart.lon.toFixed(6)
       + " --end-at " + planEnd.lat.toFixed(6) + "," + planEnd.lon.toFixed(6);
     const cmd =
-      "# 1. la route : gpx + json avec le profil d'altitude\n"
-      + py + " tilehunt.py "
+      py + " tilehunt.py "
       + (seek ? "compTileSeekerRoute" : "compSquareRoute")
       + " --db " + (c.db || "Database_OSM")
       + (seek ? "" : " --corners " + corners)
@@ -1081,7 +1080,7 @@ function renderPlan(){
                        + v.lon.toFixed(6)).join("")
       + (c.args ? " " + c.args : "")
       + " --runname " + name
-      + "\n\n# 2. la carte avec le trace\n"
+      + "\n\n"
       + py + " tilehunt.py buildmap --tiles " + (c.tiles || "france.paved.npz")
       + " --clip-to-mask --basemap esri-gray --runname " + name;
     document.getElementById("plan-text").textContent = cmd;

@@ -12,7 +12,7 @@ import tempfile
 import json, os, shutil, subprocess, sys, tempfile
 import numpy as np
 
-import tilehunt as t
+import Tilehunt as t
 
 fails = []
 ROOT = tempfile.mkdtemp()
