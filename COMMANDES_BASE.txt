@@ -2,14 +2,23 @@
  TILEHUNT
 ===============================================================================
 
-Arborescence attendue, a cote de tilehunt.py :
+Arborescence attendue :
 
     Tiles/
-      tilehunt.py
-      commandes_bases.txt
+      tilehunt.py          le point d'entree : python tilehunt.py <commande>
+      Tilehunt/            le code (tilehunt.py seul ne suffit pas)
+        cli.py             les commandes et leurs options
+        tiles.py osm.py graph.py db.py solver.py route.py
+        dem.py profile.py statshunters.py layout.py
+        viewer/            la carte : map.html, map.css, map.js
+      Test/                python Test/run_all.py
+      COMMANDES_BASE.txt
       Data/      les telechargements, les npz, les bases locales
       Maps/      les html generes
       Runs/      un sous-dossier par parcours (cree tout seul)
+
+  python tilehunt.py <commande>  et  python -m Tilehunt <commande>
+  sont equivalents.
 
 tilehunt cree Data/, Maps/ et Runs/ tout seul au premier lancement. Mais
 l'etape 2 telecharge DANS Data/ avec curl, avant qu'aucune commande tilehunt
@@ -102,7 +111,7 @@ Maps/ a la main au depart.
 
   Reglages par defaut du solveur, inutile de les ecrire :
     --cands 6            jonctions candidates par tuile
-    --seconds 80         budget pour ameliorer l'ordre de visite
+    --seconds 60         budget pour ameliorer l'ordre de visite
     --reopt-seconds 30   budget apres l'elagage des visites redondantes
     --prune-seconds 60   budget de l'elagage lui-meme
 

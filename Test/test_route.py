@@ -18,6 +18,8 @@ sys.path.insert(0, REPO)
 
 import tempfile
 import json
+
+import numpy as np  # used by several sections, not only after one succeeds
 import math
 import os
 import time
@@ -26,7 +28,7 @@ import subprocess
 import sys
 
 import osmium
-from tilehunt import tilef_to_lonlat, tile_size_m
+from Tilehunt import tilef_to_lonlat, tile_size_m
 
 OUT = os.path.join(tempfile.gettempdir(), "tilehunt-routetest")
 shutil.rmtree(OUT, ignore_errors=True)
@@ -191,7 +193,7 @@ print(res.stdout.strip())
 if res.returncode != 0:
     print(res.stderr[-1500:]); fails.append("oneway-run")
 else:
-    from tilehunt import RoadGraph
+    from Tilehunt import RoadGraph
     import numpy as np
     g = RoadGraph.load(os.path.join(OUT, "ow.graph.npz"))
     if not g.directed:
@@ -224,7 +226,7 @@ else:
 # The symptom from the field: the ride detours up into a tile and straight
 # back, when a later leg passes through that tile anyway. Such a visit must
 # be dropped -- and a visit whose tile nothing else covers must be kept.
-from tilehunt import prune_redundant
+from Tilehunt import prune_redundant
 import types as _types
 
 

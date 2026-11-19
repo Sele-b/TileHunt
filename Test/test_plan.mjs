@@ -87,6 +87,8 @@ const checks = {
   "names the run": /--runname \S+/.test(cmd),
   "buildmap follows": cmd.includes("buildmap"),
   "waypoints too": (cmd.match(/--via /g) || []).length === 2,
+  "no comment lines": !cmd.split("\n").some(l => l.trim().startsWith("#")),
+  "exactly two commands": cmd.split("\n").filter(l => l.trim()).length === 2,
 };
 for (const [k, v] of Object.entries(checks)) {
   console.log(`  ${k}: ${v ? "yes" : "NO"}`);

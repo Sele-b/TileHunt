@@ -14,7 +14,7 @@ import numpy as np
 import rasterio
 from rasterio.transform import from_origin
 
-import tilehunt as t
+import Tilehunt as t
 
 fails = []
 

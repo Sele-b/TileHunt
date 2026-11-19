@@ -18,7 +18,7 @@ os.environ["no_proxy"] = "127.0.0.1,localhost"
 for v in ("HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy"):
     os.environ.pop(v, None)
 
-import tilehunt as t
+import Tilehunt as t
 
 fails = []
 
