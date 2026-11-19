@@ -16,7 +16,10 @@
 !tilehunt.py
 !COMMANDES_BASE.txt
 
-# The tests cannot be regenerated either. Uncomment these two lines to keep
-# them, which is worth doing the day you change the tile maths or the solver.
-# !test_*.py
-# !*.mjs
+# The tests. Git does not look inside an ignored folder, so the folder itself
+# has to be re-included before anything in it can be.
+!tests/
+!tests/**
+
+# ...but not what running them leaves behind
+tests/__pycache__/
