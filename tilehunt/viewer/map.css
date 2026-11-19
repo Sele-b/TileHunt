@@ -1,0 +1,92 @@
+
+  :root{
+    --bg:#0e1116; --panel:#161b22cc; --line:#2b3340; --ink:#e6edf3;
+    --dim:#8b97a7; --green:#2ea043; --red:#da3633; --accent:#539bf5;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
+    color:var(--ink);font:13px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  /* a canvas is a replaced element: inset:0 alone leaves it at its intrinsic
+     300x150, so width/height must be given explicitly */
+  #map{position:absolute;inset:0;width:100%;height:100%;display:block;
+    cursor:grab;touch-action:none}
+  #map.drag{cursor:grabbing}
+  .panel{position:absolute;background:var(--panel);backdrop-filter:blur(10px);
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+    box-shadow:0 8px 24px #0008}
+  #hud{top:12px;left:12px;width:330px}
+  #hud h1{margin:0 0 6px;font-size:14px;font-weight:650;letter-spacing:.2px}
+  #hud .sub{color:var(--dim);font-size:11px;margin-bottom:8px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-variant-numeric:tabular-nums}
+  .kv b{font-weight:600}
+  .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;
+    vertical-align:baseline}
+  /* one column down the left: legend, View, Layers, in that order */
+  #leftstack{position:absolute;left:12px;bottom:12px;display:flex;
+    flex-direction:column;gap:10px;align-items:flex-start;
+    max-height:calc(100% - 24px);overflow-y:auto}
+  #leftstack .panel{position:static;flex:none}
+  #layers{padding:9px 10px}
+  #layers h2,#actions h2,#legend h2{margin:0 0 7px;font-size:10px;
+    text-transform:uppercase;letter-spacing:.7px;color:var(--dim);font-weight:600}
+  #layers .btns{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  /* actions, bottom right */
+  #routebox{min-width:184px;padding:9px 10px}
+  #plan{min-width:250px;width:100%;box-sizing:border-box;padding:9px 10px}
+  /* the elevation profile sits between the two bottom panels */
+  #profile{left:236px;right:12px;bottom:22px;padding:8px 10px}
+  #profile .head{display:flex;gap:14px;align-items:baseline;
+    font-size:11px;color:var(--dim);margin-bottom:4px}
+  #profile .head b{color:var(--ink);font-weight:600;
+    font-variant-numeric:tabular-nums}
+  #prof{display:block;width:100%;height:86px;cursor:crosshair}
+  @media (max-width:1100px){ #profile{display:none!important} }
+  #plan-text{white-space:pre-wrap;line-height:1.5;max-height:46vh;
+    overflow-y:auto;word-break:normal;overflow-wrap:anywhere}
+  #plan ol{margin:0 0 6px;padding-left:18px;color:var(--dim);font-size:11px}
+  #plan li.now{color:var(--ink);font-weight:600}
+  #plan li.done{color:var(--green);text-decoration:line-through}
+  #run-name{width:100%;box-sizing:border-box;padding:5px 7px;border-radius:5px;
+    border:1px solid var(--line);background:rgba(0,0,0,0.25);color:var(--ink);
+    font:500 12px ui-sans-serif,system-ui,sans-serif}
+  #run-name:focus{outline:none;border-color:#ffd24a}
+  #run-name.bad{border-color:var(--red)}
+  #run-path{margin-top:4px;color:var(--dim);word-break:break-all;
+    font:400 10px ui-monospace,SFMono-Regular,Menlo,monospace}
+  #map.plan{cursor:crosshair}
+  #actions{padding:9px 10px;display:flex;
+    flex-direction:column;gap:5px;min-width:150px;width:100%;
+    box-sizing:border-box}
+  #actions button{width:100%;text-align:left}
+  #legend{padding:9px 10px;min-width:168px;width:100%;box-sizing:border-box}
+  button{white-space:nowrap}
+  button{font:inherit;color:var(--ink);background:#21262d;border:1px solid var(--line);
+    border-radius:7px;padding:5px 10px;cursor:pointer}
+  button:hover{background:#2d333b;border-color:#3d4654}
+  button.on{background:#1f6feb33;border-color:var(--accent);color:#cfe3ff}
+  /* nothing sits bottom-right any more, so the column runs the full height
+     and the commands can be read in one go */
+  #rightstack{position:absolute;top:12px;right:12px;display:flex;
+    flex-direction:column;gap:10px;align-items:flex-end;max-width:430px;
+    max-height:calc(100% - 24px);overflow-y:auto;padding-right:2px}
+  #rightstack .panel{position:static}
+  #read{min-width:220px;font-variant-numeric:tabular-nums}
+  #read .t{font-size:16px;font-weight:650;letter-spacing:.3px}
+  #zone{position:absolute;right:12px;top:140px;min-width:240px;display:none}
+  #zone h2{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;
+    color:var(--dim);font-weight:600}
+  code{background:#0b0f14;border:1px solid var(--line);border-radius:5px;
+    padding:1px 5px;font-size:11px;display:inline-block;word-break:break-all}
+  .hint{color:var(--dim);font-size:11px;margin-top:6px}
+  #note{color:#f0b429;font-size:11px;margin-top:8px;border-top:1px solid var(--line);
+    padding-top:7px;line-height:1.4}
+  #scale{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;
+    color:var(--dim);font-size:11px;text-align:center}
+  #scale .ln{height:4px;border:1px solid var(--dim);border-top:0}
+  #attr{position:absolute;right:6px;bottom:2px;color:#6b7684;font-size:10px}
+  #attr a{color:#6b7684}
+  @media (max-width:760px){
+    #hud{max-width:none;right:12px}
+    #read{top:auto;bottom:112px;right:12px}
+    #zone{display:none!important}
+  }

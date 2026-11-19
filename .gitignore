@@ -16,10 +16,14 @@
 !tilehunt.py
 !COMMANDES_BASE.txt
 
+# The code: the tilehunt/ package, with the map's html, css and js inside it.
+!tilehunt/
+!tilehunt/**
+
 # The tests. Git does not look inside an ignored folder, so the folder itself
 # has to be re-included before anything in it can be.
 !tests/
 !tests/**
 
-# ...but not what running them leaves behind
-tests/__pycache__/
+# ...but not what running the code or the tests leaves behind
+__pycache__/

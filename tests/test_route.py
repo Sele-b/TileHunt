@@ -18,6 +18,8 @@ sys.path.insert(0, REPO)
 
 import tempfile
 import json
+
+import numpy as np  # used by several sections, not only after one succeeds
 import math
 import os
 import time
